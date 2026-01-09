@@ -98,6 +98,14 @@ fun GameScreen(
                     color = ErrorRed
                 )
             },
+            text = {
+                Text(
+                    text = "Je hebt ZAND gegooid! Doe een half atje!",
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = TextPrimary,
+                    textAlign = TextAlign.Center
+                )
+            },
             confirmButton = {
                 Button(
                     onClick = { viewModel.dismissSandPopup() },
@@ -135,12 +143,6 @@ fun GameScreen(
         )
     }
 
-    // Death match screen
-    if (gameState.phase == GamePhase.DEATH_MATCH) {
-        DeathMatchScreen(viewModel)
-        return
-    }
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -148,16 +150,36 @@ fun GameScreen(
             .padding(16.dp)
     ) {
         // Header
-        Text(
-            text = "Ronde ${gameState.roundNumber}",
-            style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary
-        )
+        if (gameState.phase == GamePhase.DEATH_MATCH) {
+            Text(
+                text = "DEATH MATCH",
+                style = MaterialTheme.typography.displayMedium,
+                color = ErrorRed,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = "Gelijke laagste scores!",
+                style = MaterialTheme.typography.titleSmall,
+                color = TextPrimary,
+                modifier = Modifier.fillMaxWidth(),
+                textAlign = TextAlign.Center
+            )
+        } else {
+            Text(
+                text = "Ronde ${gameState.roundNumber}",
+                style = MaterialTheme.typography.titleMedium,
+                color = TextPrimary
+            )
+        }
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Pot display
-        PotDisplay(potAmount = gameState.pot)
+        // Pot display (only in normal game, not death match)
+        if (gameState.phase != GamePhase.DEATH_MATCH) {
+            PotDisplay(potAmount = gameState.pot)
+        }
 
         Spacer(modifier = Modifier.height(16.dp))
 
@@ -286,12 +308,19 @@ fun GameScreen(
 
         // Scoreboard
         Text(
-            text = "Scorebord",
+            text = if (gameState.phase == GamePhase.DEATH_MATCH) "Death Match Spelers" else "Scorebord",
             style = MaterialTheme.typography.titleMedium,
             color = TextPrimary
         )
 
         Spacer(modifier = Modifier.height(8.dp))
+
+        // Show only death match players during death match, all players otherwise
+        val playersToShow = if (gameState.phase == GamePhase.DEATH_MATCH) {
+            gameState.deathMatchPlayers
+        } else {
+            gameState.players
+        }
 
         LazyColumn(
             modifier = Modifier
@@ -299,122 +328,7 @@ fun GameScreen(
                 .weight(1f),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            items(gameState.players) { player ->
-                PlayerScoreboardCard(player = player)
-            }
-        }
-    }
-}
-
-@Composable
-private fun DeathMatchScreen(viewModel: GameViewModel) {
-    val gameState by viewModel.gameState.collectAsState()
-    val isRolling by viewModel.isRolling.collectAsState()
-    val currentIndex = gameState.currentPlayerIndex
-    val deathMatchPlayers = gameState.deathMatchPlayers
-
-    if (currentIndex >= deathMatchPlayers.size) {
-        return
-    }
-
-    val currentPlayer = deathMatchPlayers[currentIndex]
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(DarkBackground)
-            .padding(16.dp)
-            .verticalScroll(rememberScrollState()),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            text = "DEATH MATCH",
-            style = MaterialTheme.typography.displayMedium,
-            color = MaterialTheme.colorScheme.error,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Gelijke laagste scores!",
-            style = MaterialTheme.typography.titleMedium,
-            color = TextPrimary,
-            textAlign = TextAlign.Center
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        Text(
-            text = currentPlayer.name,
-            style = MaterialTheme.typography.headlineLarge,
-            color = AccentPrimary
-        )
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Dice
-        if (currentPlayer.currentDice != null) {
-            Row(
-                horizontalArrangement = Arrangement.SpaceEvenly,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                DiceView(
-                    value = currentPlayer.currentDice!!.first,
-                    isRolling = false
-                )
-                DiceView(
-                    value = currentPlayer.currentDice!!.second,
-                    isRolling = false
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            if (currentPlayer.score != null) {
-                Text(
-                    text = "Score: ${currentPlayer.score!!.displayText}",
-                    style = MaterialTheme.typography.headlineMedium,
-                    color = AccentPrimary
-                )
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        if (!currentPlayer.hasRolled) {
-            Button(
-                onClick = { viewModel.rollDeathMatchDice() },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentPrimary
-                ),
-                enabled = !isRolling
-            ) {
-                Text("Gooi!")
-            }
-        } else {
-            Button(
-                onClick = { viewModel.nextDeathMatchPlayer() },
-                modifier = Modifier.fillMaxWidth(),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = AccentPrimary
-                )
-            ) {
-                Text(if (currentIndex < deathMatchPlayers.size - 1) "Volgende Speler" else "Resultaten")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(32.dp))
-
-        // Show all death match players
-        Column(
-            modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            deathMatchPlayers.forEach { player ->
+            items(playersToShow) { player ->
                 PlayerScoreboardCard(player = player)
             }
         }

@@ -149,18 +149,33 @@ class GameViewModel : ViewModel() {
             (prev.first == newDice.second && prev.second == newDice.first)
         } ?: false
 
-        val updatedPlayers = _gameState.value.players.map {
-            if (it.id == currentPlayer.id) {
-                it.copy(
-                    currentDice = newDice,
-                    previousDice = newDice,
-                    throwsUsed = it.throwsUsed + 1,
-                    hasRolled = true
-                )
-            } else it
+        // Update the correct player list based on phase
+        if (_gameState.value.phase == GamePhase.DEATH_MATCH) {
+            val updatedDeathMatchPlayers = _gameState.value.deathMatchPlayers.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(
+                        currentDice = newDice,
+                        previousDice = newDice,
+                        throwsUsed = it.throwsUsed + 1,
+                        hasRolled = true
+                    )
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(deathMatchPlayers = updatedDeathMatchPlayers)
+        } else {
+            val updatedPlayers = _gameState.value.players.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(
+                        currentDice = newDice,
+                        previousDice = newDice,
+                        throwsUsed = it.throwsUsed + 1,
+                        hasRolled = true
+                    )
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(players = updatedPlayers)
         }
 
-        _gameState.value = _gameState.value.copy(players = updatedPlayers)
         _isRolling.value = false
 
         // Check for DUIM first
@@ -192,17 +207,32 @@ class GameViewModel : ViewModel() {
 
         // Wijzen doesn't count as a throw - subtract 1 from throwsUsed and reset dice
         val currentPlayer = _gameState.value.currentPlayer ?: return
-        val updatedPlayers = _gameState.value.players.map {
-            if (it.id == currentPlayer.id) {
-                it.copy(
-                    throwsUsed = maxOf(0, it.throwsUsed - 1),
-                    currentDice = null,
-                    lockedDie = null,
-                    lockedDiePosition = null
-                )
-            } else it
+
+        if (_gameState.value.phase == GamePhase.DEATH_MATCH) {
+            val updatedDeathMatchPlayers = _gameState.value.deathMatchPlayers.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(
+                        throwsUsed = maxOf(0, it.throwsUsed - 1),
+                        currentDice = null,
+                        lockedDie = null,
+                        lockedDiePosition = null
+                    )
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(deathMatchPlayers = updatedDeathMatchPlayers)
+        } else {
+            val updatedPlayers = _gameState.value.players.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(
+                        throwsUsed = maxOf(0, it.throwsUsed - 1),
+                        currentDice = null,
+                        lockedDie = null,
+                        lockedDiePosition = null
+                    )
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(players = updatedPlayers)
         }
-        _gameState.value = _gameState.value.copy(players = updatedPlayers)
         _currentDice.value = null
     }
 
@@ -248,25 +278,41 @@ class GameViewModel : ViewModel() {
 
         if (!DiceLogic.canLockDie(die) || currentPlayer.lockedDie != null) return
 
-        val updatedPlayers = _gameState.value.players.map {
-            if (it.id == currentPlayer.id) {
-                it.copy(lockedDie = die, lockedDiePosition = position)
-            } else it
+        if (_gameState.value.phase == GamePhase.DEATH_MATCH) {
+            val updatedDeathMatchPlayers = _gameState.value.deathMatchPlayers.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(lockedDie = die, lockedDiePosition = position)
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(deathMatchPlayers = updatedDeathMatchPlayers)
+        } else {
+            val updatedPlayers = _gameState.value.players.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(lockedDie = die, lockedDiePosition = position)
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(players = updatedPlayers)
         }
-
-        _gameState.value = _gameState.value.copy(players = updatedPlayers)
     }
 
     fun unlockDie() {
         val currentPlayer = _gameState.value.currentPlayer ?: return
 
-        val updatedPlayers = _gameState.value.players.map {
-            if (it.id == currentPlayer.id) {
-                it.copy(lockedDie = null, lockedDiePosition = null)
-            } else it
+        if (_gameState.value.phase == GamePhase.DEATH_MATCH) {
+            val updatedDeathMatchPlayers = _gameState.value.deathMatchPlayers.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(lockedDie = null, lockedDiePosition = null)
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(deathMatchPlayers = updatedDeathMatchPlayers)
+        } else {
+            val updatedPlayers = _gameState.value.players.map {
+                if (it.id == currentPlayer.id) {
+                    it.copy(lockedDie = null, lockedDiePosition = null)
+                } else it
+            }
+            _gameState.value = _gameState.value.copy(players = updatedPlayers)
         }
-
-        _gameState.value = _gameState.value.copy(players = updatedPlayers)
     }
 
     fun confirmScore() {
@@ -275,47 +321,69 @@ class GameViewModel : ViewModel() {
 
         val score = DiceLogic.calculateScore(dice.first, dice.second)
 
-        // Handle Mexico
-        if (score is ScoreResult.Mexico) {
-            val newPot = _gameState.value.pot + 5
-
-            // Remove all hundreds
-            val updatedPlayers = _gameState.value.players.map {
+        if (_gameState.value.phase == GamePhase.DEATH_MATCH) {
+            // In death match, just update score - no pot changes
+            val updatedDeathMatchPlayers = _gameState.value.deathMatchPlayers.map {
                 if (it.id == currentPlayer.id) {
                     it.copy(score = score)
-                } else if (it.score is ScoreResult.Hundred) {
-                    it.copy(score = null)
                 } else it
             }
 
             _gameState.value = _gameState.value.copy(
-                players = updatedPlayers,
-                pot = newPot,
-                mexicoMode = true
+                deathMatchPlayers = updatedDeathMatchPlayers
             )
+
+            // First player sets the max throws for everyone else in death match
+            val currentPlayerIndex = _gameState.value.currentPlayerIndex
+            if (currentPlayerIndex == 0) {
+                _gameState.value = _gameState.value.copy(
+                    maxThrows = currentPlayer.throwsUsed
+                )
+            }
         } else {
-            // Handle Hundred pot addition
-            val potAddition = if (score is ScoreResult.Hundred) score.drinks else 0
-            val newPot = _gameState.value.pot + potAddition
+            // Normal game logic
+            // Handle Mexico
+            if (score is ScoreResult.Mexico) {
+                val newPot = _gameState.value.pot + 5
 
-            val updatedPlayers = _gameState.value.players.map {
-                if (it.id == currentPlayer.id) {
-                    it.copy(score = score)
-                } else it
+                // Remove all hundreds
+                val updatedPlayers = _gameState.value.players.map {
+                    if (it.id == currentPlayer.id) {
+                        it.copy(score = score)
+                    } else if (it.score is ScoreResult.Hundred) {
+                        it.copy(score = null)
+                    } else it
+                }
+
+                _gameState.value = _gameState.value.copy(
+                    players = updatedPlayers,
+                    pot = newPot,
+                    mexicoMode = true
+                )
+            } else {
+                // Handle Hundred pot addition (but NOT for Sand)
+                val potAddition = if (score is ScoreResult.Hundred) score.drinks else 0
+                val newPot = _gameState.value.pot + potAddition
+
+                val updatedPlayers = _gameState.value.players.map {
+                    if (it.id == currentPlayer.id) {
+                        it.copy(score = score)
+                    } else it
+                }
+
+                _gameState.value = _gameState.value.copy(
+                    players = updatedPlayers,
+                    pot = newPot
+                )
             }
 
-            _gameState.value = _gameState.value.copy(
-                players = updatedPlayers,
-                pot = newPot
-            )
-        }
-
-        // First player sets the max throws for everyone else
-        val currentPlayerIndex = _gameState.value.currentPlayerIndex
-        if (currentPlayerIndex == 0) {
-            _gameState.value = _gameState.value.copy(
-                maxThrows = currentPlayer.throwsUsed
-            )
+            // First player sets the max throws for everyone else
+            val currentPlayerIndex = _gameState.value.currentPlayerIndex
+            if (currentPlayerIndex == 0) {
+                _gameState.value = _gameState.value.copy(
+                    maxThrows = currentPlayer.throwsUsed
+                )
+            }
         }
 
         // Move to next player or end round
@@ -325,11 +393,22 @@ class GameViewModel : ViewModel() {
     fun nextPlayer() {
         val nextIndex = _gameState.value.currentPlayerIndex + 1
 
-        if (nextIndex >= _gameState.value.players.size) {
-            endRound()
+        if (_gameState.value.phase == GamePhase.DEATH_MATCH) {
+            // Check if all death match players have played
+            if (nextIndex >= _gameState.value.deathMatchPlayers.size) {
+                finishDeathMatch()
+            } else {
+                _gameState.value = _gameState.value.copy(currentPlayerIndex = nextIndex)
+                _currentDice.value = null
+            }
         } else {
-            _gameState.value = _gameState.value.copy(currentPlayerIndex = nextIndex)
-            _currentDice.value = null
+            // Normal game flow
+            if (nextIndex >= _gameState.value.players.size) {
+                endRound()
+            } else {
+                _gameState.value = _gameState.value.copy(currentPlayerIndex = nextIndex)
+                _currentDice.value = null
+            }
         }
     }
 
@@ -337,85 +416,64 @@ class GameViewModel : ViewModel() {
         val losers = _gameState.value.getLowestScorePlayers()
 
         if (losers.size > 1) {
-            // Death match
+            // Death match - play full game with only these players
+            val resetDeathMatchPlayers = losers.map {
+                it.copy().apply { reset() }
+            }
+
             _gameState.value = _gameState.value.copy(
                 phase = GamePhase.DEATH_MATCH,
-                deathMatchPlayers = losers,
-                currentPlayerIndex = 0
+                deathMatchPlayers = resetDeathMatchPlayers,
+                currentPlayerIndex = 0,
+                maxThrows = 3  // Reset to 3 throws for death match
             )
-            startDeathMatch()
+            _currentDice.value = null
         } else {
             _gameState.value = _gameState.value.copy(phase = GamePhase.ROUND_END)
             _navigationEvent.value = NavigationEvent.ToResult
         }
     }
 
-    private fun startDeathMatch() {
-        val deathMatchPlayers = _gameState.value.deathMatchPlayers.map {
-            it.copy().apply { reset() }
-        }
-
-        _gameState.value = _gameState.value.copy(
-            deathMatchPlayers = deathMatchPlayers,
-            currentPlayerIndex = 0
-        )
-    }
-
-    fun rollDeathMatchDice() {
-        val deathMatchPlayers = _gameState.value.deathMatchPlayers
-        val currentIndex = _gameState.value.currentPlayerIndex
-
-        if (currentIndex >= deathMatchPlayers.size) return
-
-        _isRolling.value = true
-        val dice = DiceLogic.rollTwoDice()
-        val score = DiceLogic.calculateScore(dice.first, dice.second)
-
-        val updatedDeathMatchPlayers = deathMatchPlayers.mapIndexed { index, player ->
-            if (index == currentIndex) {
-                player.copy(
-                    currentDice = dice,
-                    score = score,
-                    hasRolled = true
-                )
-            } else player
-        }
-
-        _gameState.value = _gameState.value.copy(
-            deathMatchPlayers = updatedDeathMatchPlayers
-        )
-        _isRolling.value = false
-    }
-
-    fun nextDeathMatchPlayer() {
-        val nextIndex = _gameState.value.currentPlayerIndex + 1
-
-        if (nextIndex >= _gameState.value.deathMatchPlayers.size) {
-            finishDeathMatch()
-        } else {
-            _gameState.value = _gameState.value.copy(currentPlayerIndex = nextIndex)
-        }
-    }
-
     private fun finishDeathMatch() {
         val deathMatchPlayers = _gameState.value.deathMatchPlayers
-        val lowestScore = deathMatchPlayers.minOfOrNull { it.score?.numericValue ?: Int.MAX_VALUE }
 
-        val finalLosers = deathMatchPlayers.filter { it.score?.numericValue == lowestScore }
+        // Find players with lowest score in death match
+        val playersWithScores = deathMatchPlayers.filter { it.score != null }
+        if (playersWithScores.isEmpty()) return
+
+        val lowestScore = playersWithScores.minOfOrNull { it.score!!.numericValue } ?: return
+        val finalLosers = playersWithScores.filter { it.score!!.numericValue == lowestScore }
 
         // Update main player list with death match results
         val updatedPlayers = _gameState.value.players.map { player ->
-            val deathMatchPlayer = finalLosers.find { it.id == player.id }
+            val deathMatchPlayer = deathMatchPlayers.find { it.id == player.id }
             if (deathMatchPlayer != null) {
                 player.copy(score = deathMatchPlayer.score)
             } else player
         }
 
-        _gameState.value = _gameState.value.copy(
-            players = updatedPlayers,
-            phase = GamePhase.ROUND_END
-        )
-        _navigationEvent.value = NavigationEvent.ToResult
+        // Check if there's still a tie among death match players
+        if (finalLosers.size > 1) {
+            // Another death match needed!
+            val resetDeathMatchPlayers = finalLosers.map {
+                it.copy().apply { reset() }
+            }
+
+            _gameState.value = _gameState.value.copy(
+                players = updatedPlayers,
+                deathMatchPlayers = resetDeathMatchPlayers,
+                currentPlayerIndex = 0,
+                maxThrows = 3
+            )
+            _currentDice.value = null
+        } else {
+            // We have a single loser, end the round
+            _gameState.value = _gameState.value.copy(
+                players = updatedPlayers,
+                phase = GamePhase.ROUND_END
+            )
+            _navigationEvent.value = NavigationEvent.ToResult
+        }
     }
 
     fun startNewRound() {

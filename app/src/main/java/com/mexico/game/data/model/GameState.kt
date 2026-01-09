@@ -11,7 +11,18 @@ data class GameState(
     val deathMatchPlayers: List<Player> = emptyList()
 ) {
     val currentPlayer: Player?
-        get() = players.getOrNull(currentPlayerIndex)
+        get() = if (phase == GamePhase.DEATH_MATCH) {
+            deathMatchPlayers.getOrNull(currentPlayerIndex)
+        } else {
+            players.getOrNull(currentPlayerIndex)
+        }
+
+    val activePlayers: List<Player>
+        get() = if (phase == GamePhase.DEATH_MATCH) {
+            deathMatchPlayers
+        } else {
+            players
+        }
 
     fun getLowestScorePlayers(): List<Player> {
         val playersWithScores = players.filter {
